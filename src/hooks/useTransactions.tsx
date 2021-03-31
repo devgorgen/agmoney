@@ -1,5 +1,5 @@
-import { createContext, ReactNode, useEffect, useState } from "react";
-import { api } from "./services/api";
+import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { api } from "../services/api";
 
 
 interface Transaction {
@@ -8,7 +8,7 @@ interface Transaction {
     amount: number,
     type: string,
     category: string,
-    createAt: string,
+    createdAt: string,
 }
 
 interface TransactionsProviderProps {
@@ -17,7 +17,7 @@ interface TransactionsProviderProps {
 
 interface TransactionsContextData {
     transactions: Transaction[];
-    createTransaction: (transaction: TransactionInput) => void;
+    createTransaction: (transaction: TransactionInput) => Promise<void>;
 }
 
 /* 
@@ -26,23 +26,33 @@ interface TransactionsContextData {
     e apenas omitir o que não desejo, ao invés de declarar todas as propriedades novamente.
     também poderia usar o Pick para escolher quais propriedades eu quero incluir
 */
-type TransactionInput = Omit<Transaction, 'id' | 'createAt'>;
+type TransactionInput = Omit<Transaction, 'id' | 'createdAt'>;
 
-export const TransactionsContext = createContext<TransactionsContextData>(
+const TransactionsContext = createContext<TransactionsContextData>(
     {} as TransactionsContextData //forçando o tipo apenas para parar o alert de erro, não vai afetar a execução
 );
 
 export function TransactionsProvider({ children }: TransactionsProviderProps) {
-    const [transactions, setTransaction] = useState<Transaction[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
 
     useEffect(() => {
         api.get('/transactions')
-        .then(response => setTransaction(response.data.transactions))
+        .then(response => setTransactions(response.data.transactions))
     }, []);
 
-    function createTransaction(transaction: TransactionInput) {
+    async function createTransaction(transactionInput: TransactionInput) {
       
-        api.post('/transactions', transaction);
+        const response = await api.post('/transactions', {
+            ...transactionInput,
+            createdAt: new Date(),
+        });
+
+        const { transaction } = response.data;
+
+        setTransactions([
+            ...transactions,
+            transaction
+        ])
     }
     
     return (
@@ -50,4 +60,10 @@ export function TransactionsProvider({ children }: TransactionsProviderProps) {
             {children}
         </TransactionsContext.Provider>
     )
+}
+
+export function useTransactions() {
+    const context = useContext(TransactionsContext);
+
+    return context;
 }
